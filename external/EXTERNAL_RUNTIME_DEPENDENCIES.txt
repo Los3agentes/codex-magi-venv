@@ -1,0 +1,4 @@
+# CODEX MAGI 1,001+ external/native/runtime capabilities
+# These do NOT change the exact 1,001 top-level Python target contract.
+
+Chromium (installed/managed through Playwright)
