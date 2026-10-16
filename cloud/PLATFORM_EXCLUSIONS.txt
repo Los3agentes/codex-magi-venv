@@ -1,0 +1,9 @@
+# Windows-only / not meaningful for Codex Cloud Linux
+pywin32
+WMI
+winshell
+pywinauto
+comtypes
+python-magic-bin
+# Optional host-specific package that frequently needs system PortAudio headers
+PyAudio
