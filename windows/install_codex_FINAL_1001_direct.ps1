@@ -1,6 +1,7 @@
-# CODEX / MAGI - FINAL 1001 DIRECT INSTALLER
-# Reads the canonical package list from ../requirements/CODEX_FINAL_1001_DEPENDENCIES.txt
+# CODEX / MAGI - FINAL 1001+ DIRECT INSTALLER
+# Reads the canonical Python package list from ../requirements/CODEX_FINAL_1001_DEPENDENCIES.txt
 # and installs only missing explicit targets. No preflight is performed here.
+# The "+" runtime currently includes Chromium managed by Playwright.
 
 param(
     [string]$RuntimeRoot = "C:\Users\halmi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python",
@@ -21,13 +22,13 @@ if (-not (Test-Path $Requirements)) { throw "Requirements file not found: $Requi
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 $env:PATH = "$Scripts;$env:PATH"
 
-$ReportFile = Join-Path $LogRoot "FINAL1001_install_report_$Timestamp.txt"
-$AlreadyFile = Join-Path $LogRoot "FINAL1001_already_$Timestamp.txt"
-$InstalledFile = Join-Path $LogRoot "FINAL1001_installed_now_$Timestamp.txt"
-$FailedFile = Join-Path $LogRoot "FINAL1001_failed_$Timestamp.txt"
-$TimeoutFile = Join-Path $LogRoot "FINAL1001_timeout_$Timestamp.txt"
-$BeforeFreeze = Join-Path $LogRoot "FINAL1001_before_freeze_$Timestamp.txt"
-$AfterFreeze = Join-Path $LogRoot "FINAL1001_after_freeze_$Timestamp.txt"
+$ReportFile = Join-Path $LogRoot "FINAL1001PLUS_install_report_$Timestamp.txt"
+$AlreadyFile = Join-Path $LogRoot "FINAL1001PLUS_already_$Timestamp.txt"
+$InstalledFile = Join-Path $LogRoot "FINAL1001PLUS_installed_now_$Timestamp.txt"
+$FailedFile = Join-Path $LogRoot "FINAL1001PLUS_failed_$Timestamp.txt"
+$TimeoutFile = Join-Path $LogRoot "FINAL1001PLUS_timeout_$Timestamp.txt"
+$BeforeFreeze = Join-Path $LogRoot "FINAL1001PLUS_before_freeze_$Timestamp.txt"
+$AfterFreeze = Join-Path $LogRoot "FINAL1001PLUS_after_freeze_$Timestamp.txt"
 
 $Version = & $Python -c "import sys; print(sys.version.split()[0])"
 $MajorMinor = & $Python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
@@ -60,8 +61,8 @@ except m.PackageNotFoundError:
 function Install-One {
     param([string]$Package, [int]$TimeoutSeconds)
     $Safe = ($Package -replace '[^A-Za-z0-9_.-]', '_')
-    $StdOut = Join-Path $LogRoot "FINAL1001_${Safe}_${Timestamp}.out.log"
-    $StdErr = Join-Path $LogRoot "FINAL1001_${Safe}_${Timestamp}.err.log"
+    $StdOut = Join-Path $LogRoot "FINAL1001PLUS_${Safe}_${Timestamp}.out.log"
+    $StdErr = Join-Path $LogRoot "FINAL1001PLUS_${Safe}_${Timestamp}.err.log"
     $Proc = Start-Process -FilePath $Python -ArgumentList @("-m","pip","install","--prefer-binary",$Package) -PassThru -NoNewWindow -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
     $Finished = $Proc.WaitForExit($TimeoutSeconds * 1000)
     if (-not $Finished) {
@@ -71,9 +72,10 @@ function Install-One {
     return [PSCustomObject]@{Status="EXIT"; ExitCode=$Proc.ExitCode; StdErr=$StdErr}
 }
 
-Write-Host "=== CODEX / MAGI FINAL 1001 DIRECT INSTALL ===" -ForegroundColor Cyan
+Write-Host "=== CODEX / MAGI FINAL 1001+ DIRECT INSTALL ===" -ForegroundColor Cyan
 Write-Host "Python: $Version"
-Write-Host "Targets: $($Packages.Count)"
+Write-Host "Python targets: $($Packages.Count)"
+Write-Host "+ runtimes: Chromium via Playwright"
 
 $i = 0
 foreach ($Package in $Packages) {
@@ -118,19 +120,34 @@ $PipCheckExit = $LASTEXITCODE
 $ExplicitPresent = $Already.Count + $InstalledNow.Count
 $DistributionCount = & $Python -c "import importlib.metadata as m; print(len(list(m.distributions())))"
 
+Write-Host ""
+Write-Host "[+] Installing Playwright Chromium runtime..." -ForegroundColor Cyan
+$ChromiumOutput = & $Python -m playwright install chromium 2>&1
+$ChromiumExit = $LASTEXITCODE
+if ($ChromiumExit -eq 0) {
+    Write-Host "    CHROMIUM READY" -ForegroundColor Green
+} else {
+    Write-Host "    CHROMIUM INSTALL FAILED" -ForegroundColor Red
+}
+
 $Report = @"
-CODEX / MAGI FINAL 1001 DIRECT INSTALL REPORT
-==============================================
+CODEX / MAGI FINAL 1001+ DIRECT INSTALL REPORT
+===============================================
 Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Python: $Version
 Runtime: $RuntimeRoot
-Explicit top-level targets: 1001
-Already present:            $($Already.Count)
-Installed this run:         $($InstalledNow.Count)
-Explicit targets present:   $ExplicitPresent / 1001
-Install failures:           $($Failed.Count)
-Install timeouts:           $($TimedOut.Count)
-Total Python distributions: $DistributionCount
+Explicit top-level Python targets: 1001
+Already present:                   $($Already.Count)
+Installed this run:                $($InstalledNow.Count)
+Explicit targets present:          $ExplicitPresent / 1001
+Install failures:                  $($Failed.Count)
+Install timeouts:                  $($TimedOut.Count)
+Total Python distributions:        $DistributionCount
+
+PLUS RUNTIME
+------------
+Chromium via Playwright: exit $ChromiumExit
+$($ChromiumOutput -join [Environment]::NewLine)
 
 PIP CHECK (exit $PipCheckExit)
 ------------------------------
@@ -139,6 +156,7 @@ $($PipCheck -join [Environment]::NewLine)
 $Report | Set-Content $ReportFile -Encoding UTF8
 
 Write-Host "=== COMPLETE ===" -ForegroundColor Green
-Write-Host "Explicit targets present: $ExplicitPresent / 1001"
+Write-Host "Explicit Python targets present: $ExplicitPresent / 1001"
+Write-Host "Chromium: $(if ($ChromiumExit -eq 0) {'READY'} else {'FAILED'})"
 Write-Host "Failed: $($Failed.Count)  Timed out: $($TimedOut.Count)"
 Write-Host "Report: $ReportFile"
