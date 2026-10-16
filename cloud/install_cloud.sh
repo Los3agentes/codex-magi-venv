@@ -80,17 +80,31 @@ while IFS= read -r pkg || [[ -n "$pkg" ]]; do
 done < "$REQ"
 
 pip_check="$($PYTHON_BIN -m pip check 2>&1)"; pip_check_rc=$?
+
+echo "[+] Installing Playwright Chromium runtime..."
+chromium_output="$($PYTHON_BIN -m playwright install chromium 2>&1)"; chromium_rc=$?
+if [[ $chromium_rc -eq 0 ]]; then
+  chromium_status="READY"
+else
+  chromium_status="FAILED"
+fi
+
 cat > "$REPORT" <<EOF2
-CODEX / MAGI CLOUD INSTALL REPORT
-=================================
+CODEX / MAGI 1001+ CLOUD INSTALL REPORT
+=======================================
 Date: $(date -Is)
 Python: $($PYTHON_BIN --version 2>&1)
-Explicit master targets: 1001
+Explicit master Python targets: 1001
 Processed: $count
 Already installed: $have
 Installed this run: $installed
 Platform skipped: $skipped
 Failed: $failed
+
+PLUS RUNTIME
+------------
+Chromium via Playwright: $chromium_status (exit $chromium_rc)
+$chromium_output
 
 PIP CHECK (exit $pip_check_rc)
 -----------------------------
