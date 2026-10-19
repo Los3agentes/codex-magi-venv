@@ -1,0 +1,19 @@
+# Never commit virtual environments, browser binaries, outputs, credentials, or logs.
+Venv/
+venv/
+.venv/
+Browsers/
+Reports/
+Run-*/
+__pycache__/
+*.pyc
+*.log
+.env
+.env.*
+*.key
+*.pem
+secrets.*
+*.pfx
+
+# Per-machine output preferences may contain local paths.
+config/output.json

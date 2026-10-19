@@ -1,0 +1,49 @@
+name: Thousand Nights PS1 checks
+on:
+  push:
+    paths:
+      - 'thousand-nights-protocol/**'
+      - '.github/workflows/thousand-nights-ps1.yml'
+  pull_request:
+    paths:
+      - 'thousand-nights-protocol/**'
+      - '.github/workflows/thousand-nights-ps1.yml'
+jobs:
+  windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse all PS1 scripts with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          Get-ChildItem .\thousand-nights-protocol\windows -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { $errors | Format-List | Out-String | Write-Output; throw ('PS1 parse failure: ' + $_.Name) }
+          }
+      - name: Plan with explicit paths without installing anything
+        shell: powershell
+        run: |
+          & .\thousand-nights-protocol\windows\ThousandNights.ps1 -Mode Plan -InstallRoot "$env:RUNNER_TEMP\tn-runtime" -OutputMode Custom -OutputRoot "$env:RUNNER_TEMP\tn-reports" -ReportFormat All
+          if ($LASTEXITCODE -ne 0) { throw "Plan failed: $LASTEXITCODE" }
+          if (-not (Test-Path "$env:RUNNER_TEMP\tn-reports\run.json")) { throw 'Missing run.json' }
+          if (-not (Test-Path "$env:RUNNER_TEMP\tn-reports\run.md")) { throw 'Missing run.md' }
+          if (-not (Test-Path "$env:RUNNER_TEMP\tn-reports\steps.csv")) { throw 'Missing steps.csv' }
+          if (Test-Path "$env:RUNNER_TEMP\tn-runtime\Venv") { throw 'Plan unexpectedly created runtime' }
+      - name: Verify command-line location bypasses folder picker
+        shell: powershell
+        run: |
+          & .\thousand-nights-protocol\windows\ThousandNights.ps1 -Mode Plan -InstallRoot "$env:RUNNER_TEMP\specified" -InstallFolderPicker Auto -OutputMode Auto -OutputRoot "$env:RUNNER_TEMP\tn-auto" -ReportFormat Json
+          if ($LASTEXITCODE -ne 0) { throw "Plan failed: $LASTEXITCODE" }
+          $report = @(Get-ChildItem "$env:RUNNER_TEMP\tn-auto" -Filter run.json -Recurse)[0]
+          $data = Get-Content $report.FullName -Raw | ConvertFrom-Json
+          if ($data.install_root_selection -ne 'CommandLine') { throw 'Explicit path did not bypass picker' }
+  python-audit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s thousand-nights-protocol/tests -v
